@@ -1,74 +1,60 @@
-# EE454 ESP32 Robot Final Project
+# ESP32 Robot Control and Obstacle-Based Stopping
 
-This repository contains the source code for our EE-454 final project robot.
+An undergraduate team project at the University of Evansville for **EE-454 Microcontroller Applications, Spring 2026**. The ESP32 implementation extends an earlier CRFC football robot with PS4 manual driving, L2-triggered boost, and distance-based stopping during boost.
 
-The project is an ESP32-based mobile robot rebuilt from an earlier Pico W robot platform. The final system supports stable PS4 manual control, L2 boost mode, and distance-sensor-based automatic stopping.
+## Context and contributions
 
-## Main Completed Functions
+The platform originated in the Collegiate Robotic Football Conference (CRFC) project, with faculty guidance from **Professors Yishu Bai and John MacDonald**. The EE-454 extension was a team project.
 
-- Stable PS4 controller connection on ESP32
-- Forward, backward, left, and right movement
-- L2 boost mode
-- Three VL53L0X distance sensors
-- Automatic stop when the average valid sensor distance is below 0.7 m during boost mode
+**Yiheng Ji's contributions** included adapting and reorganizing control software for the ESP32 migration, reconfiguring wiring, installing and integrating three VL53L0X sensors, debugging individual and combined readings, and conducting driving and stopping tests. The work builds on an existing robot platform and third-party libraries; it is not a firmware stack written entirely from scratch.
 
-## Project Motivation
+The [earlier Pico W build logs and photographs](https://github.com/YihengJi/CRFC-Football-robot-notes) are maintained separately. The later vision/AI quarterback senior design is a separate project and is not implemented here.
 
-We changed the main controller from Pico W to ESP32 in order to improve connection stability, debugging convenience, code modification workflow, and future expandability.
+## Implemented behavior
 
-Compared with the previous Pico W-based setup, the ESP32 platform provided:
-- more stable controller integration
-- easier reflashing and repeated testing
-- direct feedback through Serial Monitor
-- stronger library support for controller and sensor expansion
+| Feature | Behavior in the uploaded source |
+| --- | --- |
+| Manual driving | Left-stick vertical input controls forward/reverse; right-stick horizontal input controls turning. |
+| Boost | L2 above the configured threshold with sticks centered commands forward PWM 255; manual PWM is limited to 190. These are duty commands, not measured speeds. |
+| Manual override | Stick movement cancels boost; releasing L2 returns to manual control. |
+| Distance-based stop | During boost, the arithmetic mean of valid sensor readings below 0.70 m sets motor commands to zero. |
+| Sensor integration | Three VL53L0X sensors share I2C using separate XSHUT pins and assigned addresses. |
+| Controller disconnect | A motor-stop path is included in the main state machine. |
 
-## Code File Overview
+## Results and evidence
 
-### Main Control Logic
-- `esp32_BT_1_.ino`  
-  Main program of the robot. Handles manual mode, boost mode, controller logic, and automatic stopping behavior.
+- Original project tests reported functioning manual driving, boost, and distance-triggered stopping.
+- Light obstacle contact was observed with a 0.5 m stopping threshold; the threshold was increased to 0.7 m. This was an empirical adjustment, not a measured clearance guarantee.
+- Source code and [test notes](testing-and-limitations.md) distinguish implemented behavior from reported observations and future work.
+- No quantitative stopping-distance dataset or fault-injection validation is included. Speed-adaptive braking remains a future investigation.
 
-### Controller Interface
-- `bt_hid.h`
-- `bt_hid.cpp`  
-  Handles PS4 controller communication on ESP32 and provides controller input data to the main program.
+## Read before running
 
-### Motor Driver Control
-- `motor_driver.h`
-- `motor_driver.cpp`  
-  Controls motor direction and PWM output for the left and right wheels.
+This is a course prototype, not a validated autonomous navigation or collision-avoidance system. The current code has important limitations:
 
-### Pin Definitions
-- `pin_definitions.h`  
-  Contains GPIO assignments for motors, sensors, and other hardware connections.
+1. **All invalid sensor readings leave boost commanded forward.** Sensor failure does not cause a fail-closed stop.
+2. **The controller timestamp refreshes on every connected update loop**, without confirming receipt of a new input report. The 300 ms check therefore does not establish detection of stale commands while connected.
+3. The stopping rule uses the **average**, not the nearest obstacle distance, and applies **only during boost**.
+4. Zero PWM is not an instantaneous physical stop. Sequential sensor reads can delay further controller processing.
 
-### Distance Sensor Logic
-- `distance_sensors.h`
-- `distance_sensors.cpp`  
-  Initializes and reads the three VL53L0X distance sensors used for boost-mode stopping.
+Use a secured setup with wheels clear of the ground for initial tests and an accessible power cutoff. These limitations are documented without changing the original course firmware.
 
-## Hardware Summary
+## Repository guide
 
-The robot hardware includes:
-- ESP32 development board and expansion board
-- Motor driver
-- Left and right drive motors
-- PS4 controller for wireless manual control
-- Three VL53L0X distance sensors
-- Battery, power distribution, and internal wiring integrated into the chassis
+| File | Purpose |
+| --- | --- |
+| [`esp32_BT__1_.ino`](esp32_BT__1_.ino) | Main state machine, manual/boost logic and stopping threshold. |
+| [`bt_hid.cpp`](bt_hid.cpp), [`bt_hid.h`](bt_hid.h) | Bluepad32 controller interface and input state. |
+| [`motor_driver.cpp`](motor_driver.cpp), [`motor_driver.h`](motor_driver.h) | Direction and PWM output. |
+| [`distance_sensors.cpp`](distance_sensors.cpp), [`distance_sensors.h`](distance_sensors.h) | Sensor initialization, addressing and reads. |
+| [`pin_definitions.h`](pin_definitions.h) | GPIO assignments. |
+| [Setup and hardware](setup.md) | Dependencies, pin mapping and build preparation. |
+| [Testing and limitations](testing-and-limitations.md) | Evidence, caveats and proposed validation. |
 
-## Final Behavior
+## Dependencies and future work
 
-In manual mode, the robot can be driven normally using the PS4 controller.
+The source uses Arduino APIs, Bluepad32, Wire, and the `VL53L0X.h` library interface. Original package versions were not recorded; a clean-environment build has not been verified during this documentation update.
 
-When L2 is pressed:
-- the robot enters boost mode
-- the robot moves forward at high speed
-- the three distance sensors are enabled
-- the robot stops automatically if the average valid sensor distance becomes smaller than 0.7 m
+Next steps include correcting report-freshness tracking, defining and testing sensor-failure behavior, measuring sensing latency and stopping distance, and comparing fixed-threshold with speed-aware stopping methods.
 
-Manual stick input always overrides automatic behavior.
-
-## Notes
-
-This repository is intended to present the final ESP32-based version of the EE-454 robot project.
+Documentation reviewed September 2026. Firmware remains the uploaded April 2026 course version.
